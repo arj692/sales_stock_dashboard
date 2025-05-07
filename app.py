@@ -23,11 +23,21 @@ inventory_df = pd.read_excel('sample_sales_inventory.xlsx', sheet_name='Inventor
 
 st.title("📊 Multi-Product Sales & Stock Dashboard")
 
-# Dropdown to select month
-month = st.selectbox("🗓 Select Month", sales_df['Month'].unique())
+# --- 🔥 Filters ---
+col1, col2 = st.columns(2)
 
-# Filter sales data for the selected month
-filtered_sales = sales_df[sales_df['Month'] == month]
+# Dropdown to select month
+month = col1.selectbox("🗓 Select Month", sales_df['Month'].unique())
+
+# Filter product list dynamically based on month selection
+available_products = sales_df[sales_df['Month'] == month]['Product'].unique()
+products_selected = col2.multiselect("🛒 Select Product(s)", available_products, default=list(available_products))
+
+# Filter sales data
+filtered_sales = sales_df[
+    (sales_df['Month'] == month) & 
+    (sales_df['Product'].isin(products_selected))
+]
 
 # Group sales by product
 product_summary = filtered_sales.groupby('Product').agg({
@@ -44,7 +54,7 @@ combined_summary['Stock Status'] = combined_summary.apply(
     axis=1
 )
 
-# Show KPIs
+# --- 🔥 KPIs ---
 total_units = combined_summary['Units Sold'].sum()
 total_sales = combined_summary['Total Sales'].sum()
 restock_count = combined_summary['Stock Status'].str.contains('Restock').sum()
@@ -55,11 +65,11 @@ kpi1.metric("Total Units Sold", f"{total_units}")
 kpi2.metric("Total Sales", f"${total_sales:,.2f}")
 kpi3.metric("Products Needing Restock", f"{restock_count}")
 
-# Show data
+# --- 🔥 Data Table ---
 st.subheader("📝 Sales & Inventory Summary")
 st.dataframe(combined_summary)
 
-# Plot bar chart
+# --- 🔥 Chart ---
 fig = go.Figure(data=[
     go.Bar(name='Units Sold', x=combined_summary['Product'], y=combined_summary['Units Sold']),
     go.Bar(name='Current Stock', x=combined_summary['Product'], y=combined_summary['Current Stock'])
