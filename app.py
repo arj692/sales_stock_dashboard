@@ -67,7 +67,13 @@ kpi3.metric("Products Needing Restock", f"{restock_count}")
 
 # --- 🔥 Data Table ---
 st.subheader("📝 Sales & Inventory Summary")
-st.dataframe(combined_summary)
+
+def color_stock(val):
+    color = 'red' if 'Restock' in val else 'green'
+    return f'color: {color}'
+
+styled_df = combined_summary.style.applymap(color_stock, subset=['Stock Status'])
+st.dataframe(styled_df)
 
 # --- 🔥 Chart ---
 fig = go.Figure(data=[
@@ -77,3 +83,13 @@ fig = go.Figure(data=[
 
 fig.update_layout(barmode='group', title="Units Sold vs Current Stock")
 st.plotly_chart(fig, use_container_width=True)
+
+# --- 🔥 Export Button ---
+st.subheader("📥 Download Report")
+csv = combined_summary.to_csv(index=False).encode('utf-8')
+st.download_button(
+    label="Download CSV",
+    data=csv,
+    file_name=f'sales_stock_summary_{month}.csv',
+    mime='text/csv',
+)
