@@ -1,106 +1,41 @@
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
-from io import BytesIO
-from xhtml2pdf import pisa
-import base64
+import plotly.express as px
 
-# Set page config
-st.set_page_config(page_title="ASBI Sales & Stock Dashboard", layout="wide")
+st.set_page_config(page_title="ASBI Dashboard", layout="wide")
+st.title("📊 Gutty Wave Runner - Financial Dashboard")
 
-# Load data
-sales_df = pd.read_excel('sample_sales_inventory.xlsx', sheet_name='Sales_Data')
-inventory_df = pd.read_excel('sample_sales_inventory.xlsx', sheet_name='Inventory_Data')
+# KPIs
+total_revenue = 6_086_420.05
+net_profit = 4_339_726.16
+cash_end = 7_954_839.88
+total_receivables = 2_205_573.10
 
-# Sidebar navigation
-st.sidebar.title("📊 ASBI Dashboard")
-page = st.sidebar.radio("Go to", ["Dashboard", "Trends & Forecast", "Download Reports"])
+kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+kpi1.metric("💰 Total Revenue", f"Rs {total_revenue:,.2f}")
+kpi2.metric("📈 Net Profit", f"Rs {net_profit:,.2f}")
+kpi3.metric("💵 Cash Balance", f"Rs {cash_end:,.2f}")
+kpi4.metric("📉 Total Receivables", f"Rs {total_receivables:,.2f}")
 
-# Filters
-month_filter = st.sidebar.selectbox("Select Month", sales_df['Month'].unique())
-product_filter = st.sidebar.multiselect(
-    "Select Product(s)",
-    options=sales_df[sales_df['Month'] == month_filter]['Product'].unique(),
-    default=list(sales_df[sales_df['Month'] == month_filter]['Product'].unique())
-)
+# Top customers overdue
+top_customers_data = {
+    'Customer': [
+        "Coral Garden Ltd", "Eric'Seduction", "Lynn and Sea Co Ltd",
+        "Mr. Genaro Bhuttoo", "Mr. Jean Eric"
+    ],
+    'Amount Due': [
+        2_205_573.10, 1_200_197.50, 1_526_108.65, 83_100.00, 81_803.45
+    ]
+}
+df_top = pd.DataFrame(top_customers_data)
 
-filtered_sales = sales_df[
-    (sales_df['Month'] == month_filter) &
-    (sales_df['Product'].isin(product_filter))
-]
-summary = filtered_sales.groupby('Product').agg({
-    'Units Sold': 'sum',
-    'Total Sales': 'sum'
-}).reset_index()
-summary = pd.merge(summary, inventory_df, on='Product', how='left')
-summary['Stock Status'] = summary.apply(
-    lambda row: '🔴 Restock Needed' if row['Current Stock'] < row['Reorder Level'] else '🟢 Stock OK',
-    axis=1
-)
-summary['% Stock Remaining'] = round(
-    (summary['Current Stock'] / (summary['Current Stock'] + summary['Units Sold'])) * 100, 1
-)
+st.subheader("📌 Top 5 Overdue Customers")
+st.dataframe(df_top.style.format({"Amount Due": "Rs {:,.2f}"}))
 
-# Dashboard Page
-if page == "Dashboard":
-    st.title("📌 KPI Overview")
-    k1, k2, k3 = st.columns(3)
-    k1.metric("Units Sold", f"{summary['Units Sold'].sum()}")
-    k2.metric("Total Sales", f"${summary['Total Sales'].sum():,.2f}")
-    k3.metric("Restock Alerts", f"{summary['Stock Status'].str.contains('Restock').sum()}")
+fig = px.bar(df_top, x='Customer', y='Amount Due',
+             text='Amount Due', title="Top Overdue Customers",
+             labels={'Amount Due': 'Rs'}, height=400)
 
-    st.subheader("📋 Sales & Stock Summary")
-    st.dataframe(summary)
-
-    fig = go.Figure(data=[
-        go.Bar(name='Units Sold', x=summary['Product'], y=summary['Units Sold']),
-        go.Bar(name='Current Stock', x=summary['Product'], y=summary['Current Stock'])
-    ])
-    fig.update_layout(barmode='group', title="Sales vs Stock")
-    st.plotly_chart(fig, use_container_width=True)
-
-# Trends & Forecast Page
-elif page == "Trends & Forecast":
-    st.title("📈 Trends & Forecast")
-    sales_by_month = sales_df[sales_df['Product'].isin(product_filter)].groupby('Month').agg({
-        'Units Sold': 'sum',
-        'Total Sales': 'sum'
-    }).reset_index()
-
-    fig2 = go.Figure()
-    fig2.add_trace(go.Scatter(x=sales_by_month['Month'], y=sales_by_month['Units Sold'], name="Units Sold", mode='lines+markers'))
-    fig2.add_trace(go.Scatter(x=sales_by_month['Month'], y=sales_by_month['Total Sales'], name="Total Sales", mode='lines+markers'))
-
-    st.plotly_chart(fig2, use_container_width=True)
-
-    last_month_units = sales_by_month['Units Sold'].iloc[-1]
-    forecast = round(last_month_units * 1.1)
-    st.info(f"📌 Forecast for next month (Units Sold): **{forecast}** (estimated +10%)")
-
-# Download Reports Page
-elif page == "Download Reports":
-    st.title("⬇ Download Center")
-
-    # CSV
-    csv = summary.to_csv(index=False).encode('utf-8')
-    st.download_button("Download CSV", data=csv, file_name="summary.csv", mime='text/csv')
-
-    # PDF
-    def create_pdf(df):
-        html = f"""
-        <h2>ASBI Sales & Stock Summary</h2>
-        <img src="https://via.placeholder.com/150x50.png?text=ASBI+Logo" />
-        {df.to_html(index=False)}
-        """
-        buffer = BytesIO()
-        pisa.CreatePDF(html, dest=buffer)
-        return buffer
-
-    if st.button("Generate PDF"):
-        pdf_file = create_pdf(summary)
-        st.download_button(
-            label="Download PDF",
-            data=pdf_file,
-            file_name="summary.pdf",
-            mime="application/pdf"
-        )
+fig.update_traces(texttemplate='Rs %{text:,.0f}', textposition='outside')
+fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
+st.plotly_chart(fig, use_container_width=True)
